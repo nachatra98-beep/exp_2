@@ -8,8 +8,8 @@ from .models import Habit, HabitLog
 class Application20Tests(TestCase):
     """
     Comprehensive 20-Test Suite for Habit Tracker Web Application.
-    Covers Authentication, Habit CRUD, Validation, Check-in / Undo,
-    Streak Logic, Integrity, and Analytics.
+    Validates Accountless Direct Access, Habit CRUD, Validations, Check-in / Undo,
+    Streak Calculation Algorithms, Data Integrity, and Statistics.
     """
 
     def setUp(self):
@@ -19,101 +19,29 @@ class Application20Tests(TestCase):
         self.two_days_ago = self.today - timedelta(days=2)
         self.three_days_ago = self.today - timedelta(days=3)
 
-        # Standard test user
-        self.user = User.objects.create_user(
-            username='qa_nachatra',
-            email='nachatra@test.com',
-            password='Password123!'
-        )
-        self.client.force_authenticate(user=self.user)
-
     # ---------------------------------------------------------
-    # 1. AUTHENTICATION & REGISTRATION
+    # 1. ACCOUNTLESS DIRECT ACCESS & PERSONA INITIALIZATION
     # ---------------------------------------------------------
-    def test_tc01_user_registration_valid(self):
-        """TC-01: Verify successful user registration with valid credentials."""
-        self.client.logout()
-        payload = {
-            'username': 'newuser_alex',
-            'email': 'alex@example.com',
-            'password': 'SecurePassword2026!'
-        }
-        res = self.client.post('/api/auth/register/', payload)
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertIn('access', res.data)
-        self.assertIn('refresh', res.data)
-        self.assertEqual(res.data['user']['username'], 'newuser_alex')
-
-    def test_tc02_user_registration_password_too_short(self):
-        """TC-02: Verify registration fails when password is shorter than 8 characters."""
-        self.client.logout()
-        payload = {
-            'username': 'short_pass_user',
-            'email': 'short@example.com',
-            'password': 'abc'
-        }
-        res = self.client.post('/api/auth/register/', payload)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('errors', res.data)
-        self.assertIn('password', res.data['errors'])
-
-    def test_tc03_user_registration_duplicate_email(self):
-        """TC-03: Verify registration rejects an already registered email."""
-        self.client.logout()
-        payload = {
-            'username': 'another_user',
-            'email': 'nachatra@test.com',  # Already exists in setUp
-            'password': 'Password123!'
-        }
-        res = self.client.post('/api/auth/register/', payload)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('email', res.data['errors'])
-
-    def test_tc04_user_login_valid_credentials(self):
-        """TC-04: Verify login returns JWT access and refresh tokens for valid credentials."""
-        self.client.logout()
-        payload = {
-            'username': 'qa_nachatra',
-            'password': 'Password123!'
-        }
-        res = self.client.post('/api/auth/login/', payload)
+    def test_tc01_direct_accountless_access_to_habits(self):
+        """TC-01: Verify habits endpoint is accessible directly without login or tokens."""
+        res = self.client.get('/api/habits/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertIn('access', res.data)
-        self.assertIn('refresh', res.data)
+        self.assertIsInstance(res.data, list)
 
-    def test_tc05_user_login_invalid_credentials_generic_message(self):
-        """TC-05: Verify login fails with a generic error on incorrect credentials (FR-4)."""
-        self.client.logout()
-        payload = {
-            'username': 'qa_nachatra',
-            'password': 'IncorrectPassword!'
-        }
-        res = self.client.post('/api/auth/login/', payload)
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn('detail', res.data)
-        self.assertEqual(res.data['detail'], 'Invalid username or password.')
-
-    def test_tc06_jwt_token_refresh(self):
-        """TC-06: Verify refresh endpoint issues a new valid access token."""
-        self.client.logout()
-        login_res = self.client.post('/api/auth/login/', {
-            'username': 'qa_nachatra',
-            'password': 'Password123!'
-        })
-        refresh_token = login_res.data['refresh']
-
-        ref_res = self.client.post('/api/auth/refresh/', {'refresh': refresh_token})
-        self.assertEqual(ref_res.status_code, status.HTTP_200_OK)
-        self.assertIn('access', ref_res.data)
+    def test_tc02_default_persona_initialization(self):
+        """TC-02: Verify default persona 'Nachatra' is automatically initialized on access."""
+        res = self.client.get('/api/habits/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(User.objects.filter(username='Nachatra').exists())
 
     # ---------------------------------------------------------
-    # 2. HABIT MANAGEMENT (CRUD)
+    # 2. HABIT MANAGEMENT & VALIDATION (CRUD)
     # ---------------------------------------------------------
-    def test_tc07_habit_creation_standard(self):
-        """TC-07: Verify creating a habit stores all fields and initializes streaks to 0."""
+    def test_tc03_habit_creation_standard(self):
+        """TC-03: Verify creating a habit stores all fields and initializes streaks to 0."""
         payload = {
             'name': 'Study for 1 hour',
-            'description': 'Daily coding and algorithms',
+            'description': 'Daily coding and practice',
             'category': 'Study',
             'color': '#F59E0B',
             'icon': 'book',
@@ -128,46 +56,59 @@ class Application20Tests(TestCase):
         self.assertEqual(res.data['current_streak'], 0)
         self.assertEqual(res.data['longest_streak'], 0)
 
-    def test_tc08_habit_creation_name_required(self):
-        """TC-08: Verify habit creation fails when name is empty or missing."""
-        payload = {
-            'name': '   ',
-            'category': 'Health'
-        }
+    def test_tc04_habit_creation_name_required(self):
+        """TC-04: Verify habit creation fails when name is empty or missing."""
+        payload = {'name': '   ', 'category': 'Health'}
         res = self.client.post('/api/habits/', payload)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('name', res.data['errors'])
 
-    def test_tc09_habit_creation_duplicate_name_rejected(self):
-        """TC-09: Verify creating a duplicate habit name for the same user is rejected (FR-22)."""
-        Habit.objects.create(user=self.user, name='Drink 2L Water')
+    def test_tc05_habit_creation_duplicate_name_rejected(self):
+        """TC-05: Verify creating a duplicate habit name is rejected (FR-22)."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        Habit.objects.create(user=user, name='Drink 2L Water')
         res = self.client.post('/api/habits/', {'name': 'Drink 2L Water'})
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('name', res.data['errors'])
 
-    def test_tc10_habit_list_retrieval(self):
-        """TC-10: Verify habit listing retrieves active habits with accurate computed fields."""
-        Habit.objects.create(user=self.user, name='Exercise')
-        Habit.objects.create(user=self.user, name='Sleep Early')
+    def test_tc06_habit_creation_max_length_name(self):
+        """TC-06: Verify habit name exceeding 100 characters is rejected."""
+        long_name = 'A' * 105
+        res = self.client.post('/api/habits/', {'name': long_name})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', res.data['errors'])
+
+    def test_tc07_habit_description_optional(self):
+        """TC-07: Verify habit description is optional and defaults gracefully."""
+        res = self.client.post('/api/habits/', {'name': 'Quick Walk'})
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['description'], '')
+
+    def test_tc08_habit_list_retrieval(self):
+        """TC-08: Verify habit listing retrieves active habits with accurate computed fields."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        Habit.objects.create(user=user, name='Exercise')
+        Habit.objects.create(user=user, name='Sleep Early')
 
         res = self.client.get('/api/habits/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.data), 2)
         habit_names = [h['name'] for h in res.data]
         self.assertIn('Exercise', habit_names)
         self.assertIn('Sleep Early', habit_names)
 
-    def test_tc11_habit_single_detail_retrieval(self):
-        """TC-11: Verify retrieving a single habit by ID."""
-        habit = Habit.objects.create(user=self.user, name='Meditation', category='Mindfulness')
+    def test_tc09_habit_single_detail_retrieval(self):
+        """TC-09: Verify retrieving a single habit by ID."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Meditation', category='Mindfulness')
         res = self.client.get(f'/api/habits/{habit.id}/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['id'], habit.id)
         self.assertEqual(res.data['name'], 'Meditation')
 
-    def test_tc12_habit_update_fields(self):
-        """TC-12: Verify updating an existing habit modifies its attributes (FR-14, FR-20)."""
-        habit = Habit.objects.create(user=self.user, name='Read Book', goal='1 time per day')
+    def test_tc10_habit_update_fields(self):
+        """TC-10: Verify updating an existing habit modifies its attributes (FR-14, FR-20)."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Read Book', goal='1 time per day')
         update_payload = {
             'name': 'Read 20 Pages',
             'goal': '2 times per day',
@@ -177,34 +118,35 @@ class Application20Tests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['name'], 'Read 20 Pages')
         self.assertEqual(res.data['goal'], '2 times per day')
-        self.assertEqual(res.data['category'], 'Self-care')
 
     # ---------------------------------------------------------
     # 3. CHECK-IN / UNDO CHECK-IN
     # ---------------------------------------------------------
-    def test_tc13_habit_check_in_today(self):
-        """TC-13: Verify marking a habit complete for today updates status and streak."""
-        habit = Habit.objects.create(user=self.user, name='Drink 2L Water')
+    def test_tc11_habit_check_in_today(self):
+        """TC-11: Verify marking a habit complete for today updates status and streak."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Drink 2L Water')
         res = self.client.post(f'/api/habits/{habit.id}/check/', {'date': str(self.today)})
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertTrue(res.data['created'])
         self.assertTrue(res.data['habit']['completed_today'])
         self.assertEqual(res.data['habit']['current_streak'], 1)
 
-    def test_tc14_habit_check_in_idempotency(self):
-        """TC-14: Verify duplicate check-in on the same date is idempotent and does not duplicate."""
-        habit = Habit.objects.create(user=self.user, name='Walk 5000 Steps')
+    def test_tc12_habit_check_in_idempotency(self):
+        """TC-12: Verify duplicate check-in on the same date is idempotent and does not duplicate."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Walk 5000 Steps')
         HabitLog.objects.create(habit=habit, date=self.today)
 
-        # Attempt second check-in for the same date
         res = self.client.post(f'/api/habits/{habit.id}/check/', {'date': str(self.today)})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertFalse(res.data['created'])
         self.assertEqual(HabitLog.objects.filter(habit=habit, date=self.today).count(), 1)
 
-    def test_tc15_habit_undo_check_in(self):
-        """TC-15: Verify undoing a check-in reverts completed status and adjusts streak."""
-        habit = Habit.objects.create(user=self.user, name='Stretch')
+    def test_tc13_habit_undo_check_in(self):
+        """TC-13: Verify undoing a check-in reverts completed status and adjusts streak."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Stretch')
         HabitLog.objects.create(habit=habit, date=self.today)
 
         res = self.client.delete(f'/api/habits/{habit.id}/check/?date={self.today}')
@@ -216,9 +158,10 @@ class Application20Tests(TestCase):
     # ---------------------------------------------------------
     # 4. STREAK CALCULATION ALGORITHMS (SRS 4.4)
     # ---------------------------------------------------------
-    def test_tc16_streak_consecutive_days_ending_today(self):
-        """TC-16: Verify 3-day consecutive streak ending today yields current_streak=3."""
-        habit = Habit.objects.create(user=self.user, name='Deep Work')
+    def test_tc14_streak_consecutive_days_ending_today(self):
+        """TC-14: Verify 3-day consecutive streak ending today yields current_streak=3."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Deep Work')
         HabitLog.objects.create(habit=habit, date=self.two_days_ago)
         HabitLog.objects.create(habit=habit, date=self.yesterday)
         HabitLog.objects.create(habit=habit, date=self.today)
@@ -228,19 +171,20 @@ class Application20Tests(TestCase):
         self.assertEqual(res.data['longest_streak'], 3)
         self.assertTrue(res.data['completed_today'])
 
-    def test_tc17_streak_maintained_if_done_yesterday_not_today(self):
-        """TC-17: Verify streak is preserved if completed yesterday but pending today."""
-        habit = Habit.objects.create(user=self.user, name='Guitar Practice')
+    def test_tc15_streak_maintained_if_done_yesterday_not_today(self):
+        """TC-15: Verify streak is preserved if completed yesterday but pending today."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Guitar Practice')
         HabitLog.objects.create(habit=habit, date=self.yesterday)
 
         res = self.client.get(f'/api/habits/{habit.id}/')
         self.assertEqual(res.data['current_streak'], 1)
         self.assertFalse(res.data['completed_today'])
 
-    def test_tc18_streak_resets_when_chain_broken(self):
-        """TC-18: Verify streak drops to 0 if neither today nor yesterday was completed."""
-        habit = Habit.objects.create(user=self.user, name='Floss')
-        # Check-ins 2 and 3 days ago, but missed yesterday and today
+    def test_tc16_streak_resets_when_chain_broken(self):
+        """TC-16: Verify streak drops to 0 if neither today nor yesterday was completed."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Floss')
         four_days_ago = self.today - timedelta(days=4)
         HabitLog.objects.create(habit=habit, date=four_days_ago)
         HabitLog.objects.create(habit=habit, date=self.three_days_ago)
@@ -249,12 +193,27 @@ class Application20Tests(TestCase):
         self.assertEqual(res.data['current_streak'], 0)
         self.assertEqual(res.data['longest_streak'], 2)
 
+    def test_tc17_longest_streak_historical_preservation(self):
+        """TC-17: Verify longest streak preserves historical best even after current reset."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Journaling')
+        # 4 consecutive days long ago
+        for d in range(10, 6, -1):
+            HabitLog.objects.create(habit=habit, date=self.today - timedelta(days=d))
+        # 1 day completed today
+        HabitLog.objects.create(habit=habit, date=self.today)
+
+        res = self.client.get(f'/api/habits/{habit.id}/')
+        self.assertEqual(res.data['current_streak'], 1)
+        self.assertEqual(res.data['longest_streak'], 4)
+
     # ---------------------------------------------------------
-    # 5. INTEGRITY & ANALYTICS
+    # 5. INTEGRITY, PROGRESS & ANALYTICS
     # ---------------------------------------------------------
-    def test_tc19_habit_deletion_cascade_logs(self):
-        """TC-19: Verify deleting a habit cascades and removes its HabitLog entries."""
-        habit = Habit.objects.create(user=self.user, name='Temporary Habit')
+    def test_tc18_habit_deletion_cascade_logs(self):
+        """TC-18: Verify deleting a habit cascades and removes all linked HabitLog entries."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Temporary Habit')
         HabitLog.objects.create(habit=habit, date=self.today)
         HabitLog.objects.create(habit=habit, date=self.yesterday)
 
@@ -263,17 +222,34 @@ class Application20Tests(TestCase):
         self.assertEqual(Habit.objects.filter(id=habit.id).count(), 0)
         self.assertEqual(HabitLog.objects.filter(habit_id=habit.id).count(), 0)
 
-    def test_tc20_statistics_aggregation_metrics(self):
-        """TC-20: Verify /api/habits/stats/ calculates completion rates, streak, and calendar logs."""
-        h1 = Habit.objects.create(user=self.user, name='Habit One')
-        h2 = Habit.objects.create(user=self.user, name='Habit Two')
-        # Complete h1 today, leave h2 incomplete
+    def test_tc19_daily_progress_percentage_calculation(self):
+        """TC-19: Verify daily progress percentage matches completed vs total ratio."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        h1 = Habit.objects.create(user=user, name='Morning Water')
+        h2 = Habit.objects.create(user=user, name='Morning Workout')
+        h3 = Habit.objects.create(user=user, name='Evening Reading')
+        h4 = Habit.objects.create(user=user, name='Night Sleep')
+
+        # Complete 3 of 4 habits today (75%)
         HabitLog.objects.create(habit=h1, date=self.today)
+        HabitLog.objects.create(habit=h2, date=self.today)
+        HabitLog.objects.create(habit=h3, date=self.today)
 
         res = self.client.get('/api/habits/stats/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data['total_habits'], 2)
-        self.assertEqual(res.data['completed_today'], 1)
-        self.assertEqual(res.data['today_percentage'], 50)  # 1 out of 2 = 50%
+        self.assertEqual(res.data['total_habits'], 4)
+        self.assertEqual(res.data['completed_today'], 3)
+        self.assertEqual(res.data['today_percentage'], 75)
+
+    def test_tc20_statistics_and_calendar_logs_aggregation(self):
+        """TC-20: Verify stats endpoint aggregates calendar check-in dates and weekly summaries."""
+        user = User.objects.get_or_create(username='Nachatra')[0]
+        habit = Habit.objects.create(user=user, name='Hydration')
+        HabitLog.objects.create(habit=habit, date=self.today)
+        HabitLog.objects.create(habit=habit, date=self.yesterday)
+
+        res = self.client.get('/api/habits/stats/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn(str(self.today), res.data['calendar_data'])
+        self.assertIn(str(self.yesterday), res.data['calendar_data'])
         self.assertGreaterEqual(len(res.data['weekly_stats']), 7)

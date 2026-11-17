@@ -10,12 +10,12 @@ import { CalendarView } from './CalendarView';
 import { StatsView } from './StatsView';
 import { ProfileView } from './ProfileView';
 import { 
-  Plus, Settings, LogOut, ArrowLeft, RefreshCw, 
+  Plus, Settings, ArrowLeft, RefreshCw, 
   AlertCircle, Sparkles, Calendar as CalendarIcon, ArrowRight 
 } from 'lucide-react';
 
 export const Home = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -141,17 +141,6 @@ export const Home = () => {
                 onClick={() => handleTabChange('profile')}
               >
                 <Settings size={22} />
-              </button>
-              <button
-                type="button"
-                className="header-icon-btn logout-header-btn"
-                title="Logout"
-                onClick={() => {
-                  logout();
-                  navigate('/login');
-                }}
-              >
-                <LogOut size={20} />
               </button>
             </div>
           </header>

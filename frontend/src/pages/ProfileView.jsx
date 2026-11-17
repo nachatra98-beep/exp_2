@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { 
-  User, List, Bell, Sun, Info, LogOut, Edit2, 
-  ChevronRight, Check, Sparkles 
+  User, List, Bell, Sun, Info, Edit2, 
+  ChevronRight, Sparkles 
 } from 'lucide-react';
 
 export const ProfileView = ({ habits = [], onNavigateToHome }) => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
+  const { user } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [appearance, setAppearance] = useState('Light Mode');
   const [showAbout, setShowAbout] = useState(false);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   return (
     <div className="profile-view-container">
@@ -109,18 +101,6 @@ export const ProfileView = ({ habits = [], onNavigateToHome }) => {
             <p className="text-xs text-amber-700">Small steps. Big changes!</p>
           </div>
         )}
-
-        {/* Logout */}
-        <button 
-          type="button" 
-          className="profile-option-item logout-option"
-          onClick={handleLogout}
-        >
-          <div className="option-left">
-            <LogOut size={20} className="logout-icon" />
-            <span className="logout-title">Logout</span>
-          </div>
-        </button>
       </div>
     </div>
   );
